@@ -24,11 +24,9 @@ export async function GET() {
             ai: {
                 groq: aiHealth.groq,
                 fallback: aiHealth.fallback,
-                message: aiHealth.message
             },
             github: {
                 appIdConfigured: !!appId,
-                appId: appId || null,
                 privateKeyConfigured: pemExists,
                 webhookSecretConfigured: !!webhookSecret
             }
@@ -37,7 +35,7 @@ export async function GET() {
         return NextResponse.json({
             success: false,
             status: 'degraded',
-            error: error.message || 'Health check failed'
+            error: 'Health check failed'
         }, { status: 500 });
     }
 }

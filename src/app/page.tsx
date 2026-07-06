@@ -31,6 +31,14 @@ interface Finding {
   explanation: string;
   suggestion: string;
   confidence?: number;
+  file?: string;
+}
+
+interface PullRequest {
+  number: number;
+  title: string;
+  url: string;
+  user: string;
 }
 
 interface AppHealth {
@@ -39,32 +47,54 @@ interface AppHealth {
   ai: {
     groq: boolean;
     fallback: boolean;
-    message: string;
   };
   github: {
     appIdConfigured: boolean;
-    appId: string | null;
     privateKeyConfigured: boolean;
     webhookSecretConfigured: boolean;
   };
 }
 
 export default function Home() {
+  // Mode selection: 'snippet' or 'github'
+  const [reviewMode, setReviewMode] = useState<'snippet' | 'github'>('snippet');
+  
+  // Snippet Mode State
   const [activeTab, setActiveTab] = useState<'cpp' | 'js' | 'python'>('js');
   const [code, setCode] = useState(EXAMPLES.js.code);
   const [filename, setFilename] = useState(EXAMPLES.js.filename);
-  const [loading, setLoading] = useState(false);
   
-  // Results State
+  // GitHub URL State
+  const [githubUrl, setGithubUrl] = useState('');
+  const [openPulls, setOpenPulls] = useState<PullRequest[]>([]);
+  const [selectedPrUrl, setSelectedPrUrl] = useState('');
+  const [fetchingPulls, setFetchingPulls] = useState(false);
+  const [analyzedPrUrl, setAnalyzedPrUrl] = useState('');
+
+  // General Loading & Results State
+  const [loading, setLoading] = useState(false);
   const [analyzed, setAnalyzed] = useState(false);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [astSummary, setAstSummary] = useState<any>(null);
   const [rulesTriggered, setRulesTriggered] = useState<any[]>([]);
+  const [filesAnalyzed, setFilesAnalyzed] = useState<string[]>([]);
   
   // Health Dashboard State
   const [health, setHealth] = useState<AppHealth | null>(null);
 
-  // Synchronize tab changes
+  // Load health settings silently on startup
+  useEffect(() => {
+    fetch('/api/health')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setHealth(data);
+        }
+      })
+      .catch(err => console.error('Failed to load API health status', err));
+  }, []);
+
+  // Synchronize snippet tab changes
   const handleTabChange = (tab: 'cpp' | 'js' | 'python') => {
     setActiveTab(tab);
     setCode(EXAMPLES[tab].code);
@@ -75,44 +105,78 @@ export default function Home() {
     setRulesTriggered([]);
   };
 
-  // Fetch API configurations on load
-  useEffect(() => {
-    fetch('/api/health')
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          setHealth(data);
+  // Fetch pull requests when a repo URL is provided
+  const fetchRepoPulls = async () => {
+    if (!githubUrl) return;
+    setFetchingPulls(true);
+    setOpenPulls([]);
+    setSelectedPrUrl('');
+    
+    try {
+      const response = await fetch(`/api/pulls?repoUrl=${encodeURIComponent(githubUrl)}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setOpenPulls(data.pulls || []);
+        if (data.pulls && data.pulls.length > 0) {
+          setSelectedPrUrl(data.pulls[0].url);
+        } else {
+          alert('No open Pull Requests found in this repository.');
         }
-      })
-      .catch(err => console.error('Failed to load API health', err));
-  }, []);
+      } else {
+        alert(data.error || 'Failed to fetch PRs. Verify that the URL is public.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Network request failed. Make sure the backend server is running.');
+    } finally {
+      setFetchingPulls(false);
+    }
+  };
 
-  // Run Local AST + AI Analysis
+  // Run code review (Snippet or GitHub PR)
   const runAnalysis = async () => {
     setLoading(true);
     setAnalyzed(false);
     setFindings([]);
-    
+    setFilesAnalyzed([]);
+    setAstSummary(null);
+
+    const payload: any = {};
+    if (reviewMode === 'snippet') {
+      payload.code = code;
+      payload.filename = filename;
+    } else {
+      // Prioritize explicit PR selection, fall back to whatever is in the input
+      const targetUrl = selectedPrUrl || githubUrl;
+      if (!targetUrl) {
+        alert('Please enter a GitHub PR URL or select an open Pull Request.');
+        setLoading(false);
+        return;
+      }
+      payload.prUrl = targetUrl;
+      setAnalyzedPrUrl(targetUrl);
+    }
+
     try {
       const response = await fetch('/api/analyze', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ code, filename })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
       const data = await response.json();
-      
+
       if (data.success) {
         setFindings(data.findings || []);
-        setAstSummary(data.astSummary);
+        setAstSummary(data.astSummary || null);
         setRulesTriggered(data.rules || []);
+        setFilesAnalyzed(data.filesAnalyzed || []);
       } else {
-        alert(`Analysis Error: ${data.error || 'Server error'}`);
+        alert(`Analysis Error: ${data.error || 'Check server configuration'}`);
       }
     } catch (error) {
       console.error(error);
-      alert('Network request failed. Make sure your local server is running.');
+      alert('Network request failed. Please check your internet connection.');
     } finally {
       setLoading(false);
       setAnalyzed(true);
@@ -120,13 +184,13 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-[#060814] text-slate-100 flex flex-col font-sans selection:bg-indigo-500/30">
+    <main className="min-h-screen bg-[#05070f] text-slate-100 flex flex-col font-sans selection:bg-indigo-500/30">
       
       {/* Background Radial Glow */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-indigo-950/20 via-transparent to-transparent pointer-events-none" />
 
       {/* ============ Header ============ */}
-      <header className="border-b border-slate-800/80 bg-[#060814]/80 backdrop-blur sticky top-0 z-50">
+      <header className="border-b border-slate-800/80 bg-[#05070f]/80 backdrop-blur sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-500 to-violet-600 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/20">
@@ -134,7 +198,7 @@ export default function Home() {
             </div>
             <div>
               <span className="font-semibold text-slate-100">AI Bug Detector</span>
-              <span className="ml-2 text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400">App Router</span>
+              <span className="ml-2 text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400">Playground</span>
             </div>
           </div>
 
@@ -142,15 +206,15 @@ export default function Home() {
           <div className="flex items-center gap-4 text-xs">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-slate-400">Server Status: <strong className="text-slate-200">Online</strong></span>
+              <span className="text-slate-400">System Status: <strong className="text-slate-200">Online</strong></span>
             </div>
             {health && (
               <div className="hidden md:flex items-center gap-3 border-l border-slate-800 pl-4">
                 <span className="text-slate-400">
-                  Groq API: <strong className={health.ai.groq ? 'text-emerald-400' : 'text-rose-400'}>{health.ai.groq ? 'Healthy' : 'Degraded'}</strong>
+                  AI Model: <strong className={health.ai.groq ? 'text-emerald-400' : 'text-rose-400'}>{health.ai.groq ? 'Connected' : 'Degraded'}</strong>
                 </span>
                 <span className="text-slate-400">
-                  GitHub App: <strong className={health.github.appIdConfigured ? 'text-indigo-400' : 'text-slate-500'}>{health.github.appIdConfigured ? 'Active' : 'Offline'}</strong>
+                  GitHub App Integration: <strong className={health.github.appIdConfigured ? 'text-indigo-400' : 'text-slate-500'}>{health.github.appIdConfigured ? 'Active' : 'Offline'}</strong>
                 </span>
               </div>
             )}
@@ -165,80 +229,157 @@ export default function Home() {
         <section className="text-center md:text-left md:flex items-center justify-between gap-12 py-4">
           <div className="max-w-2xl">
             <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-              Deep Logical Bug Detection
+              Deep Logical Bug Detector
             </h1>
             <p className="mt-3 text-lg text-slate-400">
-              An advanced code review assistant using Abstract Syntax Tree (AST) scanning combined with low-latency LLMs to capture memory leaks, race conditions, and vulnerabilities in pull request workflows.
+              An advanced code review assistant using Abstract Syntax Tree (AST) scanning combined with low-latency LLMs. Paste raw code blocks or connect public GitHub Pull Requests to run automatic reviews.
             </p>
           </div>
-          <div className="mt-6 md:mt-0 flex gap-3 justify-center">
-            <a 
-              href="https://github.com/VanshSharmaPES/AI-Bug-Detector" 
-              target="_blank" 
-              rel="noreferrer"
-              className="px-4 py-2 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 transition border border-slate-700/50 flex items-center gap-2"
-            >
-              <svg className="w-4 h-4 fill-slate-300" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-              GitHub Repository
-            </a>
-          </div>
         </section>
+
+        {/* ============ Mode Selector ============ */}
+        <div className="flex justify-center md:justify-start">
+          <div className="bg-[#0b0e1a] p-1 rounded-lg border border-slate-800 flex gap-1">
+            <button
+              onClick={() => { setReviewMode('snippet'); setAnalyzed(false); }}
+              className={`px-4 py-2 rounded-md text-xs font-semibold transition ${
+                reviewMode === 'snippet' ? 'bg-indigo-500 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              📝 Review Code Snippet
+            </button>
+            <button
+              onClick={() => { setReviewMode('github'); setAnalyzed(false); }}
+              className={`px-4 py-2 rounded-md text-xs font-semibold transition ${
+                reviewMode === 'github' ? 'bg-indigo-500 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              🐙 Review GitHub Pull Request
+            </button>
+          </div>
+        </div>
 
         {/* ============ Playground Grid ============ */}
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
-          {/* Left Panel: Editor */}
-          <div className="lg:col-span-7 bg-[#0b0e1a] rounded-xl border border-slate-800 shadow-xl overflow-hidden flex flex-col">
+          {/* Left Panel: Input Area */}
+          <div className="lg:col-span-7 bg-[#0b0e1a] rounded-xl border border-slate-800 shadow-xl overflow-hidden flex flex-col min-h-[460px]">
             
-            {/* Editor Tabs & File Header */}
-            <div className="bg-[#0e1222] border-b border-slate-800 px-4 py-2 flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                {(['js', 'cpp', 'python'] as const).map(tab => (
-                  <button
-                    key={tab}
-                    onClick={() => handleTabChange(tab)}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${
-                      activeTab === tab 
-                        ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' 
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-                    }`}
-                  >
-                    {EXAMPLES[tab].language}
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-mono text-slate-500">File:</span>
-                <input
-                  type="text"
-                  value={filename}
-                  onChange={(e) => setFilename(e.target.value)}
-                  className="bg-slate-900 border border-slate-800 rounded px-2 py-0.5 text-xs font-mono text-slate-300 w-32 focus:outline-none focus:border-indigo-500/50"
-                />
-              </div>
-            </div>
+            {/* --- Mode A: Review Code Snippet --- */}
+            {reviewMode === 'snippet' && (
+              <>
+                <div className="bg-[#0e1222] border-b border-slate-800 px-4 py-2.5 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    {(['js', 'cpp', 'python'] as const).map(tab => (
+                      <button
+                        key={tab}
+                        onClick={() => handleTabChange(tab)}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${
+                          activeTab === tab 
+                            ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' 
+                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                        }`}
+                      >
+                        {EXAMPLES[tab].language}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-mono text-slate-500">File:</span>
+                    <input
+                      type="text"
+                      value={filename}
+                      onChange={(e) => setFilename(e.target.value)}
+                      className="bg-slate-900 border border-slate-800 rounded px-2 py-0.5 text-xs font-mono text-slate-300 w-32 focus:outline-none focus:border-indigo-500/50"
+                    />
+                  </div>
+                </div>
 
-            {/* Editable code text area */}
-            <div className="relative flex-1 min-h-[360px] font-mono text-sm leading-relaxed bg-[#070913] flex">
-              {/* Line Numbers gutter */}
-              <div className="w-12 bg-[#0a0d18]/60 select-none text-slate-600 text-right pr-3 py-4 border-r border-slate-800/50 text-xs">
-                {Array.from({ length: code.split('\n').length }).map((_, idx) => (
-                  <div key={idx} className="h-[21px]">{idx + 1}</div>
-                ))}
+                <div className="relative flex-1 min-h-[340px] font-mono text-sm leading-relaxed bg-[#070913] flex">
+                  {/* Line Numbers Gutter */}
+                  <div className="w-12 bg-[#0a0d18]/60 select-none text-slate-600 text-right pr-3 py-4 border-r border-slate-800/50 text-xs">
+                    {Array.from({ length: code.split('\n').length }).map((_, idx) => (
+                      <div key={idx} className="h-[21px]">{idx + 1}</div>
+                    ))}
+                  </div>
+                  {/* Textarea */}
+                  <textarea
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    className="flex-1 w-full bg-transparent resize-none p-4 text-xs text-slate-300 focus:outline-none focus:ring-0 font-mono leading-[21px] whitespace-pre min-h-[340px]"
+                    spellCheck={false}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* --- Mode B: Review GitHub Pull Request --- */}
+            {reviewMode === 'github' && (
+              <div className="p-6 flex-1 flex flex-col gap-6 bg-[#070913]">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-200">Option 1: Paste Direct Pull Request Link</h3>
+                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                    Paste the direct URL of a public Pull Request from any public GitHub repository to review it instantly.
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="e.g. https://github.com/owner/repo/pull/12"
+                      value={githubUrl}
+                      onChange={(e) => setGithubUrl(e.target.value)}
+                      className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-slate-300 focus:outline-none focus:border-indigo-500/50"
+                    />
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-800/80 pt-6">
+                  <h3 className="text-sm font-semibold text-slate-200">Option 2: Fetch PRs from a Repository</h3>
+                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                    Enter the repository link to list its active open Pull Requests:
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="e.g. https://github.com/VanshSharmaPES/AI-Bug-Detector"
+                      value={githubUrl}
+                      onChange={(e) => setGithubUrl(e.target.value)}
+                      className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-slate-300 focus:outline-none focus:border-indigo-500/50"
+                    />
+                    <button
+                      onClick={fetchRepoPulls}
+                      disabled={fetchingPulls || !githubUrl}
+                      className="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 transition text-xs font-semibold"
+                    >
+                      {fetchingPulls ? 'Fetching...' : 'Fetch Open PRs'}
+                    </button>
+                  </div>
+
+                  {openPulls.length > 0 && (
+                    <div className="mt-4">
+                      <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Select Open Pull Request:</label>
+                      <select
+                        value={selectedPrUrl}
+                        onChange={(e) => setSelectedPrUrl(e.target.value)}
+                        className="mt-1.5 w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-indigo-500/50 font-mono"
+                      >
+                        {openPulls.map(pr => (
+                          <option key={pr.number} value={pr.url}>
+                            #{pr.number}: {pr.title} (by @{pr.user})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
               </div>
-              {/* Textarea */}
-              <textarea
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                className="flex-1 w-full bg-transparent resize-none p-4 text-xs text-slate-300 focus:outline-none focus:ring-0 font-mono leading-[21px] whitespace-pre min-h-[360px]"
-                spellCheck={false}
-              />
-            </div>
+            )}
 
             {/* Editor Footer Actions */}
             <div className="bg-[#0e1222] border-t border-slate-800 p-4 flex items-center justify-between">
               <span className="text-[11px] text-slate-500">
-                Pasted code is analyzed using local AST Parsers before sending to Groq.
+                {reviewMode === 'snippet' 
+                  ? 'Pasted code is analyzed using local AST Parsers before sending to Groq.'
+                  : 'Files modified in the pull request will be crawled and reviewed.'}
               </span>
               <button
                 onClick={runAnalysis}
@@ -261,7 +402,7 @@ export default function Home() {
           </div>
 
           {/* Right Panel: Results */}
-          <div className="lg:col-span-5 bg-[#0b0e1a] rounded-xl border border-slate-800 shadow-xl overflow-hidden self-stretch flex flex-col">
+          <div className="lg:col-span-5 bg-[#0b0e1a] rounded-xl border border-slate-800 shadow-xl overflow-hidden self-stretch flex flex-col min-h-[460px]">
             <div className="bg-[#0e1222] border-b border-slate-800 px-4 py-3 flex items-center justify-between">
               <span className="text-xs font-semibold tracking-wide uppercase text-slate-300">Live Analysis Output</span>
               {analyzed && (
@@ -272,15 +413,17 @@ export default function Home() {
             </div>
 
             {/* Scrollable findings area */}
-            <div className="flex-1 p-5 overflow-y-auto max-h-[464px] space-y-4 bg-[#070913]">
+            <div className="flex-1 p-5 overflow-y-auto max-h-[440px] space-y-4 bg-[#070913]">
               {!analyzed && !loading && (
                 <div className="h-full flex flex-col items-center justify-center text-center py-16 px-4">
                   <div className="w-12 h-12 rounded-full bg-slate-800/40 border border-slate-700/50 flex items-center justify-center text-xl mb-3">
                     🔍
                   </div>
-                  <h3 className="text-sm font-semibold text-slate-300">Interactive Playground</h3>
+                  <h3 className="text-sm font-semibold text-slate-300">Interactive Review Panel</h3>
                   <p className="text-xs text-slate-500 mt-1 max-w-xs leading-relaxed">
-                    Select a tab, modify the code template, and click "Run AI Review" to see static parser feedback and logical bug highlights.
+                    {reviewMode === 'snippet' 
+                      ? 'Modify the code template on the left and click "Run AI Review" to parse AST and find bugs.'
+                      : 'Provide a GitHub Pull Request URL on the left and click "Run AI Review" to analyze.'}
                   </p>
                 </div>
               )}
@@ -302,56 +445,76 @@ export default function Home() {
                   </div>
                   <h3 className="text-sm font-semibold text-slate-300">No issues found</h3>
                   <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                    The code compiled cleanly and no logical security or safety bugs were flagged by the AI engine.
+                    The files parsed successfully and no logical bugs or vulnerabilities were detected by the AI model.
                   </p>
                 </div>
               )}
 
-              {analyzed && findings.map((finding, idx) => (
-                <div 
-                  key={idx} 
-                  className={`p-4 rounded-lg border bg-[#0b0e1a]/50 backdrop-blur-sm transition hover:bg-[#0b0e1a] ${
-                    finding.severity.toLowerCase() === 'critical' || finding.severity.toLowerCase() === 'high'
-                      ? 'border-rose-500/20 hover:border-rose-500/30'
-                      : 'border-amber-500/20 hover:border-amber-500/30'
-                  }`}
-                >
-                  {/* Header info */}
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded ${
-                        finding.severity.toLowerCase() === 'critical' 
-                          ? 'bg-rose-500/20 text-rose-400' 
-                          : finding.severity.toLowerCase() === 'high' 
-                            ? 'bg-rose-400/15 text-rose-300' 
-                            : 'bg-amber-500/10 text-amber-400'
-                      }`}>
-                        {finding.severity}
-                      </span>
-                      <span className="text-[10px] font-mono text-slate-500">
-                        Line: {finding.lineStart === finding.lineEnd ? finding.lineStart : `${finding.lineStart}-${finding.lineEnd}`}
-                      </span>
+              {/* Grouped findings by filename */}
+              {analyzed && findings.length > 0 && (
+                <div className="space-y-4">
+                  {/* List of files analyzed if PR mode */}
+                  {filesAnalyzed.length > 0 && (
+                    <div className="mb-4 p-3 bg-slate-900 border border-slate-800 rounded-lg">
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block mb-1">Files Inspected:</span>
+                      <div className="flex flex-wrap gap-1">
+                        {filesAnalyzed.map(file => (
+                          <span key={file} className="text-[10px] font-mono bg-slate-800 text-indigo-300 px-1.5 py-0.5 rounded">
+                            {file}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                    {finding.confidence && (
-                      <span className="text-[10px] text-slate-500">
-                        Confidence: {(finding.confidence * 100).toFixed(0)}%
-                      </span>
-                    )}
-                  </div>
+                  )}
 
-                  {/* Title & Description */}
-                  <h4 className="text-xs font-bold text-slate-200">{finding.title}</h4>
-                  <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{finding.explanation}</p>
+                  {/* Findings Cards */}
+                  {findings.map((finding, idx) => (
+                    <div 
+                      key={idx} 
+                      className={`p-4 rounded-lg border bg-[#0b0e1a]/50 backdrop-blur-sm transition hover:bg-[#0b0e1a] ${
+                        finding.severity.toLowerCase() === 'critical' || finding.severity.toLowerCase() === 'high'
+                          ? 'border-rose-500/20 hover:border-rose-500/30'
+                          : 'border-amber-500/20 hover:border-amber-500/30'
+                      }`}
+                    >
+                      {/* Header info */}
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded ${
+                            finding.severity.toLowerCase() === 'critical' 
+                              ? 'bg-rose-500/20 text-rose-400' 
+                              : finding.severity.toLowerCase() === 'high' 
+                                ? 'bg-rose-400/15 text-rose-300' 
+                                : 'bg-amber-500/10 text-amber-400'
+                          }`}>
+                            {finding.severity}
+                          </span>
+                          {finding.file && (
+                            <span className="text-[10px] font-mono text-indigo-400 max-w-[120px] truncate" title={finding.file}>
+                              {finding.file.split('/').pop()}
+                            </span>
+                          )}
+                          <span className="text-[10px] font-mono text-slate-500">
+                            Line: {finding.lineStart}
+                          </span>
+                        </div>
+                      </div>
 
-                  {/* Suggestion block */}
-                  <div className="mt-3 pt-3 border-t border-slate-800/80">
-                    <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Suggested Fix</span>
-                    <pre className="mt-1.5 p-2 bg-slate-950/80 border border-slate-800/50 rounded text-[11px] font-mono text-indigo-300 overflow-x-auto whitespace-pre-wrap">
-                      {finding.suggestion}
-                    </pre>
-                  </div>
+                      {/* Title & Description */}
+                      <h4 className="text-xs font-bold text-slate-200">{finding.title}</h4>
+                      <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{finding.explanation}</p>
+
+                      {/* Suggestion block */}
+                      <div className="mt-3 pt-3 border-t border-slate-800/80">
+                        <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Suggested Fix</span>
+                        <pre className="mt-1.5 p-2 bg-slate-950/80 border border-slate-800/50 rounded text-[11px] font-mono text-indigo-300 overflow-x-auto whitespace-pre-wrap">
+                          {finding.suggestion}
+                        </pre>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
 
             {/* AST summary card */}
@@ -366,66 +529,6 @@ export default function Home() {
                 </div>
               </div>
             )}
-          </div>
-        </section>
-
-        {/* ============ Health Dashboard Panel ============ */}
-        <section className="bg-[#0b0e1a] rounded-xl border border-slate-800 p-6 shadow-xl">
-          <h2 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
-            <span>⚙️</span> Local & Cloud Configuration Status
-          </h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
-            {/* Groq Connection */}
-            <div className="bg-[#070913] border border-slate-800/50 rounded-lg p-4 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-slate-400">Groq API Connection</span>
-                  <span className={`w-2 h-2 rounded-full ${health?.ai.groq ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'}`} />
-                </div>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Used for fast, deterministic code reviews via the Llama-3.3-70B model.
-                </p>
-              </div>
-              <div className="mt-4 pt-3 border-t border-slate-800/30 text-xs">
-                Status: <strong className={health?.ai.groq ? 'text-emerald-400' : 'text-slate-500'}>{health?.ai.groq ? 'ONLINE' : 'OFFLINE'}</strong>
-              </div>
-            </div>
-
-            {/* GitHub App Authentication */}
-            <div className="bg-[#070913] border border-slate-800/50 rounded-lg p-4 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-slate-400">GitHub App Authentication</span>
-                  <span className={`w-2 h-2 rounded-full ${health?.github.appIdConfigured ? 'bg-indigo-500' : 'bg-slate-600'}`} />
-                </div>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  App credentials used to authenticate requests via GitHub Webhooks.
-                </p>
-              </div>
-              <div className="mt-4 pt-3 border-t border-slate-800/30 text-xs flex justify-between">
-                <span>App ID: <strong className="text-indigo-400">{health?.github.appId || 'Not set'}</strong></span>
-                <span>Key: <strong className={health?.github.privateKeyConfigured ? 'text-emerald-400' : 'text-rose-400'}>{health?.github.privateKeyConfigured ? 'LOADED' : 'MISSING'}</strong></span>
-              </div>
-            </div>
-
-            {/* Webhook Endpoint Configuration */}
-            <div className="bg-[#070913] border border-slate-800/50 rounded-lg p-4 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-slate-400">Webhook HMAC Verification</span>
-                  <span className={`w-2 h-2 rounded-full ${health?.github.webhookSecretConfigured ? 'bg-indigo-500' : 'bg-slate-600'}`} />
-                </div>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Secures the webhooks using SHA-256 signature verification signatures.
-                </p>
-              </div>
-              <div className="mt-4 pt-3 border-t border-slate-800/30 text-xs">
-                HMAC Secret: <strong className={health?.github.webhookSecretConfigured ? 'text-indigo-400' : 'text-rose-400'}>{health?.github.webhookSecretConfigured ? 'CONFIGURED' : 'NOT SET'}</strong>
-              </div>
-            </div>
-
           </div>
         </section>
 
@@ -482,7 +585,7 @@ export default function Home() {
                 </li>
                 <li>
                   <strong className="text-slate-300">Set Webhook:</strong> Set your GitHub App's Webhook URL to:
-                  <code className="block mt-1 p-1 bg-slate-950/80 border border-slate-800/40 rounded text-[10px] font-mono text-indigo-300 text-center select-all">
+                  <code className="block mt-1 p-1 bg-slate-950/80 border border-slate-800/40 rounded text-[10px] font-mono text-indigo-300 text-center select-all font-semibold">
                     https://your-vercel-domain.vercel.app/api/webhook
                   </code>
                 </li>

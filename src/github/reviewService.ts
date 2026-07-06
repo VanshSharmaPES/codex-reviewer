@@ -3,8 +3,8 @@ import pino from 'pino';
 import { getOctokitClient } from './client';
 import { fetchPRDiff } from './diffFetcher';
 import { parseCode } from '../parser/astParser';
-import { getTriggeredRules } from '../rules/ruleEngine';
-import { buildSystemPrompt, buildUserPrompt } from '../prompt/contextBuilder';
+import { executeRules } from '../rules/ruleEngine';
+import { buildEnhancedSystemPrompt, buildEnhancedUserPrompt } from '../prompt/contextBuilder';
 import { analyzeCode } from '../ai/analyzer';
 import { postReviewComments } from './commenter';
 
@@ -33,16 +33,22 @@ export async function runPRReview(
         if (!file.patch) continue;
 
         const parsedContext = parseCode(file.filename, file.patch);
-        const rules = getTriggeredRules(parsedContext);
+        
+        const codeContext = {
+            parsedContext,
+            fileContent: file.patch,
+            surroundingLines: 5
+        };
+        const pipelineResult = executeRules(codeContext);
 
-        const systemPrompt = buildSystemPrompt();
-        const userPrompt = buildUserPrompt(
-            file.filename,
-            parsedContext.language,
-            file.patch,
-            parsedContext.astSummary,
-            rules
-        );
+        const systemPrompt = buildEnhancedSystemPrompt(parsedContext.language);
+        const userPrompt = buildEnhancedUserPrompt({
+            filename: file.filename,
+            language: parsedContext.language,
+            rawDiff: file.patch,
+            parsedContext,
+            staticRuleResults: pipelineResult.results
+        });
 
         const findings = await pRetry(() => analyzeCode(systemPrompt, userPrompt), {
             retries: 3,
@@ -51,7 +57,7 @@ export async function runPRReview(
             }
         });
 
-        if (findings.length > 0) {
+        if (findings && findings.length > 0) {
             allFindings.push({ file, findings });
         }
     }
