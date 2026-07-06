@@ -2,6 +2,7 @@ import { Webhooks } from '@octokit/webhooks';
 import { NextRequest, NextResponse } from 'next/server';
 import pino from 'pino';
 import { prQueue } from '@/queue/prQueue';
+import { runPRReview } from '@/github/reviewService';
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
@@ -30,17 +31,34 @@ async function handlePRWebhook(event: any) {
         return;
     }
 
-    try {
-        await prQueue.add('review-pr', {
-            owner: repository.owner.login,
-            repo: repository.name,
-            prNumber: pull_request.number,
-            installationId: installation.id,
-        });
+    const bypassQueue = process.env.BYPASS_QUEUE === 'true' || !process.env.REDIS_URL;
 
-        logger.info(`Queued PR review job for ${repository.full_name}#${pull_request.number}`);
-    } catch (error) {
-        logger.error({ err: error }, 'Failed to queue PR review job');
+    if (bypassQueue) {
+        try {
+            logger.info(`Running direct PR review (bypassing queue) for ${repository.full_name}#${pull_request.number}`);
+            await runPRReview(
+                repository.owner.login,
+                repository.name,
+                pull_request.number,
+                installation.id
+            );
+            logger.info(`Completed direct PR review for ${repository.full_name}#${pull_request.number}`);
+        } catch (error) {
+            logger.error({ err: error }, 'Direct PR review failed');
+        }
+    } else {
+        try {
+            await prQueue.add('review-pr', {
+                owner: repository.owner.login,
+                repo: repository.name,
+                prNumber: pull_request.number,
+                installationId: installation.id,
+            });
+
+            logger.info(`Queued PR review job for ${repository.full_name}#${pull_request.number}`);
+        } catch (error) {
+            logger.error({ err: error }, 'Failed to queue PR review job');
+        }
     }
 }
 

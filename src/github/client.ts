@@ -17,12 +17,15 @@ export function getOctokitClient(installationId: number): Octokit {
         throw new Error('GITHUB_APP_ID environment variable is missing');
     }
 
-    let privateKey: string;
-    try {
-        privateKey = fs.readFileSync(path.resolve(privateKeyPath), 'utf8');
-    } catch (error) {
-        logger.error({ err: error, path: privateKeyPath }, 'Failed to read GitHub App private key');
-        throw new Error(`Could not read private key from ${privateKeyPath}`);
+    let privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
+    
+    if (!privateKey) {
+        try {
+            privateKey = fs.readFileSync(path.resolve(privateKeyPath), 'utf8');
+        } catch (error) {
+            logger.error({ err: error, path: privateKeyPath }, 'Failed to read GitHub App private key');
+            throw new Error(`Could not read private key from ${privateKeyPath} and GITHUB_APP_PRIVATE_KEY environment variable is not set`);
+        }
     }
 
     return new Octokit({
