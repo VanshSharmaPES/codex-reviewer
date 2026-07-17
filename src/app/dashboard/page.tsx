@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 
-type Review = { id: string; owner: string; repo: string; prNumber: number; status: 'passed' | 'failed' | 'partial'; violations: number; createdAt: string };
+type Review = { id: string; owner: string; repo: string; prNumber: number; status: 'passed' | 'failed' | 'partial'; violations: number; filesAnalyzed?: number; durationMs?: number; provider?: string; createdAt: string };
 
 const statusCopy = { passed: 'Passed', failed: 'Findings', partial: 'Partial' } as const;
 
@@ -23,6 +23,7 @@ export default function DashboardPage() {
     total: reviews.length,
     passed: reviews.filter(review => review.status === 'passed').length,
     findings: reviews.reduce((total, review) => total + review.violations, 0),
+    averageDuration: reviews.length ? Math.round(reviews.reduce((total, review) => total + (review.durationMs ?? 0), 0) / reviews.length) : 0,
   }), [reviews]);
 
   return (
@@ -48,7 +49,7 @@ export default function DashboardPage() {
         </div>
 
         <section aria-label="Review summary" className="mb-8 grid gap-px overflow-hidden rounded-lg border border-cyber-800 bg-cyber-800 sm:grid-cols-3">
-          {[['Reviews recorded', summary.total], ['Passed checks', summary.passed], ['Violations found', summary.findings]].map(([label, value]) => (
+          {[['Reviews recorded', summary.total], ['Passed checks', summary.passed], ['Violations found', summary.findings], ['Avg. duration', summary.averageDuration ? `${(summary.averageDuration / 1000).toFixed(1)}s` : '—']].map(([label, value]) => (
             <div key={label} className="bg-cyber-900 px-5 py-5">
               <p className="font-mono text-[11px] text-slate-500">{label}</p>
               <p className="mt-2 font-display text-2xl font-bold text-slate-100">{value}</p>
@@ -64,7 +65,7 @@ export default function DashboardPage() {
           {loading && <div className="space-y-3 p-5" aria-label="Loading review history"><div className="h-12 animate-pulse rounded bg-cyber-800" /><div className="h-12 animate-pulse rounded bg-cyber-800" /></div>}
           {!loading && error && <div className="p-8 text-center text-sm text-rose-300">{error}</div>}
           {!loading && !error && reviews.length === 0 && <div className="p-12 text-center"><p className="text-sm font-semibold text-slate-300">No reviews recorded yet</p><p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-slate-500">Run a convention review from a GitHub webhook to see repository history here.</p></div>}
-          {!loading && !error && reviews.length > 0 && <div className="divide-y divide-cyber-800">{reviews.map(review => <div key={review.id} className="flex flex-col gap-3 px-5 py-4 transition hover:bg-cyber-850/40 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-mono text-sm text-slate-200">{review.owner}/{review.repo} <span className="text-slate-500">#{review.prNumber}</span></p><p className="mt-1 text-xs text-slate-500">{new Date(review.createdAt).toLocaleString()}</p></div><div className="flex items-center gap-5"><span className="font-mono text-xs text-slate-400">{review.violations} violation{review.violations === 1 ? '' : 's'}</span><span className={`rounded px-2 py-1 text-[11px] font-semibold ${review.status === 'passed' ? 'bg-volt-300/10 text-volt-300' : review.status === 'failed' ? 'bg-rose-400/10 text-rose-300' : 'bg-amber-300/10 text-amber-300'}`}>{statusCopy[review.status]}</span></div></div>)}</div>}
+          {!loading && !error && reviews.length > 0 && <div className="divide-y divide-cyber-800">{reviews.map(review => <div key={review.id} className="flex flex-col gap-3 px-5 py-4 transition hover:bg-cyber-850/40 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-mono text-sm text-slate-200">{review.owner}/{review.repo} <span className="text-slate-500">#{review.prNumber}</span></p><p className="mt-1 text-xs text-slate-500">{new Date(review.createdAt).toLocaleString()} · {review.filesAnalyzed ?? 0} files · {review.provider ?? 'unknown'}</p></div><div className="flex items-center gap-5"><span className="font-mono text-xs text-slate-400">{review.violations} violation{review.violations === 1 ? '' : 's'}</span><span className={`rounded px-2 py-1 text-[11px] font-semibold ${review.status === 'passed' ? 'bg-volt-300/10 text-volt-300' : review.status === 'failed' ? 'bg-rose-400/10 text-rose-300' : 'bg-amber-300/10 text-amber-300'}`}>{statusCopy[review.status]}</span></div></div>)}</div>}
         </section>
       </div>
     </main>

@@ -10,6 +10,7 @@ import { extractLlmPatterns } from '../../src/conventions/llmPatterns';
 import { generateFixes } from '../../src/conventions/fixGenerator';
 import { validateFix } from '../../src/conventions/fixValidator';
 import { deleteRepositoryProfile, listRepositoryProfiles, loadRepositoryProfile, saveRepositoryProfile } from '../../src/conventions/profileRegistry';
+import { createValidatedFixPullRequest } from '../../src/github/fixPullRequest';
 
 test('classifies supported identifier styles', () => {
   assert.equal(classifyIdentifier('formatValue'), 'camelCase');
@@ -95,4 +96,18 @@ test('persists and reloads a repository profile atomically', () => {
   assert.equal(deleteRepositoryProfile(directory, 'acme', 'payments'), true);
   assert.equal(loadRepositoryProfile(directory, 'acme', 'payments'), null);
   fs.rmSync(directory, { recursive: true, force: true });
+});
+
+test('creates an idempotent validated-fix pull request', async () => {
+  const calls: string[] = [];
+  const octokit = { rest: {
+    git: { createRef: async () => { calls.push('ref'); } },
+    repos: { createOrUpdateFileContents: async () => { calls.push('file'); } },
+    pulls: { list: async () => ({ data: [] }), get: async () => ({ data: { base: { ref: 'main' } } }), create: async () => { calls.push('pr'); return { data: { html_url: 'https://github.com/acme/app/pull/2' } }; }, },
+  } } as any;
+  const violation = { ruleId: 'function-name-style' as const, path: 'src/helpers.ts', line: 1, message: 'Use camelCase.', confidence: 1, examples: [] };
+  const fix = { violation, status: 'validated' as const, unifiedDiff: 'diff', fixedSource: 'export function goodName() {}' };
+  const url = await createValidatedFixPullRequest(octokit, 'acme', 'app', 1, 'abcdef123456', [fix], new Map([['src/helpers.ts', fix.fixedSource]]));
+  assert.equal(url, 'https://github.com/acme/app/pull/2');
+  assert.deepEqual(calls, ['ref', 'file', 'pr']);
 });

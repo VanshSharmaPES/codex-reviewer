@@ -21,6 +21,8 @@ const EXAMPLES = {
   }
 };
 
+const TAB_WIDTH = 2;
+
 // ============ Type Definitions ============
 interface Finding {
   ruleId: string;
@@ -81,6 +83,31 @@ export default function Home() {
   
   // Health Dashboard State
   const [health, setHealth] = useState<AppHealth | null>(null);
+
+  const handleEditorKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== 'Tab') return;
+    event.preventDefault();
+    const editor = event.currentTarget;
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    const indentation = ' '.repeat(TAB_WIDTH);
+    const selectedText = code.slice(start, end);
+
+    if (event.shiftKey) {
+      const lineStart = code.lastIndexOf('\n', start - 1) + 1;
+      const removeCount = code.slice(lineStart, lineStart + TAB_WIDTH).match(/^ {1,2}/)?.[0].length ?? 0;
+      if (!removeCount) return;
+      setCode(`${code.slice(0, lineStart)}${code.slice(lineStart + removeCount)}`);
+      requestAnimationFrame(() => editor.setSelectionRange(Math.max(lineStart, start - removeCount), Math.max(lineStart, end - removeCount)));
+      return;
+    }
+
+    const replacement = selectedText.includes('\n')
+      ? selectedText.replace(/^/gm, indentation)
+      : indentation;
+    setCode(`${code.slice(0, start)}${replacement}${code.slice(end)}`);
+    requestAnimationFrame(() => editor.setSelectionRange(start + replacement.length, start + replacement.length));
+  };
 
   // Load health settings silently on startup
   useEffect(() => {
@@ -307,6 +334,8 @@ export default function Home() {
                   <textarea
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
+                    onKeyDown={handleEditorKeyDown}
+                    aria-label="Code snippet editor"
                     className="flex-1 w-full bg-transparent resize-none p-4 text-xs text-slate-300 focus:outline-none focus:ring-0 font-mono leading-[21px] whitespace-pre min-h-[340px] border-none"
                     spellCheck={false}
                   />

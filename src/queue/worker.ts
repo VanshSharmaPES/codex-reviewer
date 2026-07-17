@@ -21,6 +21,7 @@ dotenv.config();
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
 export const prWorker = new Worker<PRReviewJob>('pr-analysis', async (job: Job<PRReviewJob>) => {
+    const startedAt = Date.now();
     const { owner, repo, prNumber, installationId, runConventions } = job.data;
     logger.info(`Processing PR analysis for ${owner}/${repo}#${prNumber}`);
 
@@ -79,7 +80,7 @@ export const prWorker = new Worker<PRReviewJob>('pr-analysis', async (job: Job<P
         const pullRequest = await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber });
         const conventionResult = await runConventionReview(octokit, owner, repo, pullRequest.data.base.sha, pullRequest.data.head.sha, diffFiles, process.env.CONVENTION_PROFILE_PATH);
         logger.info({ owner, repo, prNumber, violations: conventionResult.violations.length, partial: conventionResult.partial }, 'Convention review completed');
-        recordReview({ id: `${owner}/${repo}#${prNumber}:${pullRequest.data.head.sha}`, owner, repo, prNumber, status: conventionResult.partial ? 'partial' : conventionResult.violations.length ? 'failed' : 'passed', violations: conventionResult.violations.length, createdAt: new Date().toISOString() });
+        recordReview({ id: `${owner}/${repo}#${prNumber}:${pullRequest.data.head.sha}`, owner, repo, prNumber, status: conventionResult.partial ? 'partial' : conventionResult.violations.length ? 'failed' : 'passed', violations: conventionResult.violations.length, filesAnalyzed: diffFiles.length, durationMs: Date.now() - startedAt, provider: process.env.GROQ_API_KEY ? 'groq' : process.env.OPENAI_API_KEY ? 'openai' : 'deterministic', createdAt: new Date().toISOString() });
         if (process.env.CONVENTION_PUBLISH === 'true') await publishConventionReview(octokit, owner, repo, prNumber, pullRequest.data.head.sha, conventionResult);
         if (process.env.CONVENTION_CREATE_FIX_PR === 'true') {
             const files = new Map(conventionResult.fixes.filter(fix => fix.status === 'validated' && fix.fixedSource).map(fix => [fix.violation.path, fix.fixedSource!]));
