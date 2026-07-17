@@ -121,6 +121,10 @@ docker-compose up --build   # Redis + Next.js server + worker, containerized
 
 or run components separately: `redis-server`, `npm run dev`, `npm run worker`.
 
+### Vercel deployment checks
+
+Before deploying, run `npm run build` locally. The production build requires the direct `tree-sitter` dependency declared in `package.json`; Vercel will also fail the build when JSX text contains unescaped apostrophes or quotes. Redis is required by the webhook/worker path, but the convention-review CLI and the static frontend build do not require a local Redis server.
+
 ## Roadmap
 
 - Professional UI refinement for the dashboard and review experience, with a distinctive visual system and polished states

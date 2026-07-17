@@ -585,13 +585,13 @@ export default function Home() {
                   <strong className="text-slate-300">Deploy Serverless:</strong> Push the codebase to Vercel and configure variables (`BYPASS_QUEUE=true`, API keys, and your `.pem` key).
                 </li>
                 <li className="leading-relaxed">
-                  <strong className="text-slate-300">Set Webhook:</strong> Set your GitHub App's Webhook URL to:
+                  <strong className="text-slate-300">Set Webhook:</strong> Set your GitHub App&apos;s Webhook URL to:
                   <code className="block mt-1 p-1 bg-cyber-950 border border-cyber-800 rounded text-[10px] font-mono text-volt-300 text-center select-all font-semibold">
                     https://your-vercel-domain.vercel.app/api/webhook
                   </code>
                 </li>
                 <li className="leading-relaxed">
-                  <strong className="text-slate-300">Subscribe:</strong> Check the **"Pull requests"** subscription box in GitHub developer settings.
+                  <strong className="text-slate-300">Subscribe:</strong> Check the <strong>&quot;Pull requests&quot;</strong> subscription box in GitHub developer settings.
                 </li>
                 <li className="leading-relaxed">
                   <strong className="text-slate-300">Run:</strong> Open a PR in any installed repository. The inline annotations will be posted automatically!
