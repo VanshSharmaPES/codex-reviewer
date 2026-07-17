@@ -554,7 +554,7 @@ review:
 `;
 }
 
-export default {
+const repoConfig = {
     fetchRepoConfig,
     getConfigFromCache,
     clearConfigCache,
@@ -563,3 +563,5 @@ export default {
     generateExampleConfig,
     DEFAULT_CONFIG,
 };
+
+export default repoConfig;

@@ -105,6 +105,8 @@ Repository profiles can also be managed through the profile registry APIs. Profi
 
 Webhook deliveries now carry the PR head/base SHAs and use a deterministic BullMQ job ID, preventing duplicate processing when GitHub retries the same delivery. Set `CONVENTION_REVIEW_ENABLED=true` to fetch base/head source trees, materialize isolated repositories, and run the convention evaluator in the worker. Set `CONVENTION_PROFILE_PATH` to reuse a persisted profile; otherwise a profile is learned from the base tree.
 
+Set `CONVENTION_PUBLISH=true` to publish convention results as a GitHub Check Run with changed-line annotations and inline review comments. Review history is retained locally through `GET /api/reviews` in `.codex-reviewer/reviews.json`. Validated fix PR creation is available through the guarded `createValidatedFixPullRequest` service and must be explicitly wired to an approved fix workflow.
+
 ## How Codex and GPT-5.6 were used
 
 Codex, using GPT-5.6, was used as a development collaborator for architecture review, implementation planning, code generation, test creation, and local verification of the repository-convention CLI. It helped structure the code into typed, independently testable modules and validate the profile-and-review flow against fixtures.

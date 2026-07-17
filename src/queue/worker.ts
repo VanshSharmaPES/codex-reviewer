@@ -12,6 +12,8 @@ import { buildSystemPrompt, buildUserPrompt } from '../prompt/contextBuilder';
 import { analyzeCode } from '../ai/analyzer';
 import { postReviewComments } from '../github/commenter';
 import { runConventionReview } from '../github/conventionReviewService';
+import { publishConventionReview } from '../github/conventionPublisher';
+import { recordReview } from '../reviews/reviewStore';
 
 dotenv.config();
 
@@ -76,6 +78,8 @@ export const prWorker = new Worker<PRReviewJob>('pr-analysis', async (job: Job<P
         const pullRequest = await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber });
         const conventionResult = await runConventionReview(octokit, owner, repo, pullRequest.data.base.sha, pullRequest.data.head.sha, diffFiles, process.env.CONVENTION_PROFILE_PATH);
         logger.info({ owner, repo, prNumber, violations: conventionResult.violations.length, partial: conventionResult.partial }, 'Convention review completed');
+        recordReview({ id: `${owner}/${repo}#${prNumber}:${pullRequest.data.head.sha}`, owner, repo, prNumber, status: conventionResult.partial ? 'partial' : conventionResult.violations.length ? 'failed' : 'passed', violations: conventionResult.violations.length, createdAt: new Date().toISOString() });
+        if (process.env.CONVENTION_PUBLISH === 'true') await publishConventionReview(octokit, owner, repo, prNumber, pullRequest.data.head.sha, conventionResult);
     }
 
     logger.info(`Successfully processed PR ${owner}/${repo}#${prNumber}`);
