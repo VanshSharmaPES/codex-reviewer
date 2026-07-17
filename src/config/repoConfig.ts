@@ -476,10 +476,10 @@ function matchGlobPattern(filePath: string, pattern: string): boolean {
  * Generate an example .aibugs.yml configuration
  */
 export function generateExampleConfig(): string {
-    return `# AI Bug Detector Configuration
+    return `# Codex Reviewer Configuration
 # Place this file as .aibugs.yml in your repository root
 
-# Enable or disable AI Bug Detector for this repository
+# Enable or disable Codex Reviewer for this repository
 enabled: true
 
 # Paths to ignore (supports glob patterns)

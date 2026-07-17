@@ -262,7 +262,7 @@ export function exportRulesAsMarkdown(): string {
     const rules = ruleRegistry.getAllMetadata();
     const stats = ruleRegistry.getStats();
     
-    let markdown = `# AI Bug Detector - Rule Reference\n\n`;
+    let markdown = `# Codex Reviewer - Rule Reference\n\n`;
     markdown += `Total Rules: ${stats.totalRules}\n\n`;
     
     markdown += `## Severity Breakdown\n\n`;

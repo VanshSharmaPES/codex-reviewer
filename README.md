@@ -1,4 +1,4 @@
-# AI Bug Detector
+# Codex Reviewer
 
 A GitHub App that performs automated, AI-powered code review on Pull Requests. It parses code structurally (not just as text), reasons about it using an LLM, and posts inline review comments on the exact lines where issues are found.
 
@@ -8,7 +8,7 @@ A GitHub App that performs automated, AI-powered code review on Pull Requests. I
 
 ## What it does
 
-When a Pull Request is opened or updated, AI Bug Detector:
+When a Pull Request is opened or updated, Codex Reviewer:
 
 1. Receives the event via a GitHub webhook (signature-verified)
 2. Parses the changed files into an Abstract Syntax Tree (AST) using `tree-sitter`
@@ -74,6 +74,7 @@ The project also includes a local TypeScript/JavaScript convention-review workfl
 ```bash
 npm run conventions:profile -- --repo fixtures/convention-base --out fixtures/profile.json
 npm run conventions:review -- --base fixtures/convention-base --repo fixtures/convention-change --profile fixtures/profile.json --patch fixtures/convention-change.patch
+npm run demo:conventions
 ```
 
 Pass `--fixes auto` to request up to three structured AI-generated unified diffs for the detected convention violations. Each generated diff is applied in an isolated temporary copy, reparsed, checked against the original rule, and rejected if it introduces another convention violation or touches an unrelated location.
@@ -98,6 +99,8 @@ npm run build
 
 The fixture workflow is deterministic and does not require Redis, GitHub credentials, or an AI provider. AI-generated fixes are never applied to the user’s working tree automatically; they are validated in an isolated temporary copy first.
 
+The demo command profiles the included fixture repository, reviews the fixture patch, and validates a mocked fix end-to-end. It is the quickest way to rehearse the convention workflow after a clean checkout.
+
 ## How Codex and GPT-5.6 were used
 
 Codex, using GPT-5.6, was used as a development collaborator for architecture review, implementation planning, code generation, test creation, and local verification of the repository-convention CLI. It helped structure the code into typed, independently testable modules and validate the profile-and-review flow against fixtures.
@@ -107,8 +110,8 @@ Codex and GPT-5.6 are not part of the application’s runtime review pipeline. R
 ## Running locally
 
 ```bash
-git clone https://github.com/VanshSharmaPES/AI-Bug-Detector.git
-cd AI-Bug-Detector
+git clone https://github.com/VanshSharmaPES/codex-reviewer.git
+cd codex-reviewer
 npm install
 cp .env.example .env   # fill in GITHUB_APP_ID, GITHUB_WEBHOOK_SECRET, GROQ_API_KEY, REDIS_URL
 ```

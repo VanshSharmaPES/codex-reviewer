@@ -341,7 +341,7 @@ export default function Home() {
                   <div className="mt-3 flex gap-2">
                     <input
                       type="text"
-                      placeholder="e.g. https://github.com/VanshSharmaPES/AI-Bug-Detector"
+                      placeholder="e.g. https://github.com/VanshSharmaPES/codex-reviewer"
                       value={githubUrl}
                       onChange={(e) => setGithubUrl(e.target.value)}
                       className="flex-1 bg-cyber-950 border border-cyber-800 rounded-lg px-3 py-2 text-xs font-mono text-slate-300 focus:outline-none focus:border-volt-300/30"
@@ -612,9 +612,9 @@ export default function Home() {
       {/* ============ Footer ============ */}
       <footer className="border-t border-cyber-800 bg-[#030304] py-8 text-center text-xs text-slate-500 mt-12 font-mono">
         <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <span>© 2026 AI Bug Detector. Built with Next.js, BullMQ, and Groq API.</span>
+          <span>© 2026 Codex Reviewer. Built with Next.js, BullMQ, and Groq API.</span>
           <span className="flex items-center gap-4">
-            <a href="https://github.com/VanshSharmaPES/AI-Bug-Detector" target="_blank" rel="noreferrer" className="hover:text-slate-300 transition">GitHub</a>
+            <a href="https://github.com/VanshSharmaPES/codex-reviewer" target="_blank" rel="noreferrer" className="hover:text-slate-300 transition">GitHub</a>
             <span>•</span>
             <a href="https://console.groq.com" target="_blank" rel="noreferrer" className="hover:text-slate-300 transition">Groq Console</a>
           </span>

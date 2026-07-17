@@ -39,7 +39,7 @@ export async function runCli(args: string[]): Promise<number> {
     if (!parsedSources.length) { console.error('No eligible source file could be parsed.'); return 3; }
     const llm = has(args, '--llm-patterns') ? await extractLlmPatterns(parsedSources) : { patterns: [], diagnostics: [] };
     const profile = buildProfile(root, parsedSources, llm.patterns);
-    const output = option(args, '--out') ?? path.join(root, '.ai-bug-detector', 'conventions.profile.json');
+    const output = option(args, '--out') ?? path.join(root, '.codex-reviewer', 'conventions.profile.json');
     writeProfile(path.resolve(output), profile);
     console.log(renderProfile(profile, selection.skips.length + sources.length - parsedSources.length));
     for (const diagnostic of llm.diagnostics) console.warn(`${diagnostic.severity.toUpperCase()} ${diagnostic.code}: ${diagnostic.message}`);

@@ -1,7 +1,7 @@
 {
-  "name": "ai-bug-detector",
+  "name": "codex-reviewer",
   "version": "1.0.0",
-  "description": "AI-Powered GitHub Code Reviewer & Bug Detector",
+  "description": "Repository-aware AI code review and convention analysis",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,7 +11,8 @@
     "worker": "tsx src/queue/worker.ts",
     "conventions:profile": "tsx scripts/conventions.ts profile",
     "conventions:review": "tsx scripts/conventions.ts review",
-    "test:conventions": "tsx --test tests/conventions/core.test.ts"
+    "test:conventions": "tsx --test tests/conventions/core.test.ts",
+    "demo:conventions": "tsx scripts/conventions-demo.ts"
   },
   "dependencies": {
     "@octokit/auth-app": "^7.1.3",

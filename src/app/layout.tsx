@@ -13,8 +13,8 @@ const display = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: 'AI Bug Detector',
-  description: 'AI-Powered GitHub Code Reviewer & Bug Detector',
+  title: 'Codex Reviewer',
+  description: 'Repository-aware AI code review and convention analysis',
 };
 
 export default function RootLayout({

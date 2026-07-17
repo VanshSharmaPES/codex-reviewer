@@ -39,7 +39,7 @@ export async function postReviewComments(
             owner,
             repo,
             issue_number: prNumber,
-            body: '✅ AI Bug Detector found no high-confidence issues in this PR.'
+            body: '✅ Codex Reviewer found no high-confidence issues in this PR.'
         });
         return;
     }
