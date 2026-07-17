@@ -10,17 +10,18 @@ import { safeJoin } from './paths';
 import { resolvePatch } from './patchResolver';
 import { evaluateProfile } from './evaluator';
 import { fingerprint } from './profileBuilder';
+import { extractLlmPatterns } from './llmPatterns';
 
 function option(args: string[], name: string): string | undefined { const index = args.indexOf(name); return index >= 0 ? args[index + 1] : undefined; }
 function has(args: string[], name: string): boolean { return args.includes(name); }
-function usage() { return 'Usage:\n  conventions profile --repo <base-repo> [--out <profile.json>] [--max-files 50] [--include-tests]\n  conventions review --base <base-repo> --repo <post-change-repo> --profile <profile.json> --patch <change.patch>'; }
+function usage() { return 'Usage:\n  conventions profile --repo <base-repo> [--out <profile.json>] [--max-files 50] [--include-tests] [--llm-patterns]\n  conventions review --base <base-repo> --repo <post-change-repo> --profile <profile.json> --patch <change.patch>'; }
 function collectSources(root: string) {
   const selection = selectSourceFiles(root);
   const sources = selection.paths.map(repoPath => { const source = fs.readFileSync(safeJoin(root, repoPath), 'utf8'); return { path: repoPath, source, features: extractFileFeatures(repoPath, source) }; });
   return { selection, sources, parsedSources: sources.filter(source => !source.features.parseError) };
 }
 
-export function runCli(args: string[]): number {
+export async function runCli(args: string[]): Promise<number> {
   const command = args[0];
   if (command === 'review') return review(args);
   if (command !== 'profile') { console.error(usage()); return 2; }
@@ -34,10 +35,12 @@ export function runCli(args: string[]): number {
     const sources = selection.paths.map(repoPath => { const source = fs.readFileSync(safeJoin(root, repoPath), 'utf8'); return { path: repoPath, source, features: extractFileFeatures(repoPath, source) }; });
     const parsedSources = sources.filter(source => !source.features.parseError);
     if (!parsedSources.length) { console.error('No eligible source file could be parsed.'); return 3; }
-    const profile = buildProfile(root, parsedSources);
+    const llm = has(args, '--llm-patterns') ? await extractLlmPatterns(parsedSources) : { patterns: [], diagnostics: [] };
+    const profile = buildProfile(root, parsedSources, llm.patterns);
     const output = option(args, '--out') ?? path.join(root, '.ai-bug-detector', 'conventions.profile.json');
     writeProfile(path.resolve(output), profile);
     console.log(renderProfile(profile, selection.skips.length + sources.length - parsedSources.length));
+    for (const diagnostic of llm.diagnostics) console.warn(`${diagnostic.severity.toUpperCase()} ${diagnostic.code}: ${diagnostic.message}`);
     console.log(`\nProfile written to ${path.resolve(output)}`);
     return 0;
   } catch (error) { console.error(error instanceof Error ? error.message : 'Unable to create profile.'); return 2; }

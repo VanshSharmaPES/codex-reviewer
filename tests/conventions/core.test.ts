@@ -6,6 +6,7 @@ import test from 'node:test';
 import { classifyIdentifier, extractFileFeatures } from '../../src/conventions/extractor';
 import { buildProfile } from '../../src/conventions/profileBuilder';
 import { evaluateProfile } from '../../src/conventions/evaluator';
+import { extractLlmPatterns } from '../../src/conventions/llmPatterns';
 
 test('classifies supported identifier styles', () => {
   assert.equal(classifyIdentifier('formatValue'), 'camelCase');
@@ -33,4 +34,16 @@ test('profile storage rejects unknown schema versions', async () => {
   fs.writeFileSync(profilePath, JSON.stringify({ schemaVersion: 2 }));
   assert.throws(() => readProfile(profilePath));
   fs.rmSync(directory, { recursive: true, force: true });
+});
+
+test('accepts only model patterns grounded in supplied examples', async () => {
+  const source = 'export function runTask() { try { return true; } catch { throw new Error("failed"); } }';
+  const features = extractFileFeatures('src/task.ts', source);
+  const client = { complete: async (_system: string, user: string) => {
+    const candidate = JSON.parse(user).candidates[0];
+    return JSON.stringify({ id: 'error-handling-shape', rule: 'Handle errors before returning.', confidence: 0.9, examples: [{ path: candidate.path, line: candidate.line }] });
+  } };
+  const result = await extractLlmPatterns([{ path: 'src/task.ts', source, features }], client);
+  assert.equal(result.patterns.length, 1);
+  assert.equal(result.patterns[0].kind, 'llm-advisory');
 });

@@ -1,2 +1,2 @@
 import { runCli } from '../src/conventions/cli';
-process.exitCode = runCli(process.argv.slice(2));
+runCli(process.argv.slice(2)).then(code => { process.exitCode = code; });

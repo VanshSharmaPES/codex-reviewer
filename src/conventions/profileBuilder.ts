@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { ConventionProfile, DeclarationFeature, FileFeatures, IdentifierStyle, ProfileRule, RuleId } from './types';
+import { ConventionProfile, DeclarationFeature, FileFeatures, IdentifierStyle, LlmPattern, ProfileRule, RuleId } from './types';
 import { classifyIdentifier } from './extractor';
 
 const minForRule = (id: RuleId) => id === 'import-order' ? 10 : 15;
@@ -29,7 +29,7 @@ function lengthRule(files: FileFeatures[]): ProfileRule | null {
   return { id: 'function-length', kind: 'deterministic', expected: { maxNonCommentBodyLines: max, medianNonCommentBodyLines: median }, supportCount: functions.filter(f => f.bodyLines! <= max).length, eligibleCount: functions.length, confidence: 1, examples: stableExamples(functions.slice(0, 5)), enforceable: functions.length >= 15 };
 }
 export function fingerprint(root: string, files: { path: string; source: string }[]) { return crypto.createHash('sha256').update(files.sort((a, b) => a.path.localeCompare(b.path)).map(file => `${file.path}\0${crypto.createHash('sha256').update(file.source).digest('hex')}`).join('\n')).digest('hex'); }
-export function buildProfile(root: string, sources: { path: string; source: string; features: FileFeatures }[]): ConventionProfile {
+export function buildProfile(root: string, sources: { path: string; source: string; features: FileFeatures }[], llmPatterns: LlmPattern[] = []): ConventionProfile {
   const files = sources.map(s => s.features); const rules = [dominantStyle('function-name-style', 'function', files), dominantStyle('variable-name-style', 'variable', files), dominantStyle('class-name-style', 'class', files), importRule(files), lengthRule(files), documentationRule(files)].filter((rule): rule is ProfileRule => Boolean(rule));
-  return { schemaVersion: 1, repository: { root, sampledPaths: sources.map(s => s.path).sort(), createdAt: new Date().toISOString(), fingerprint: fingerprint(root, sources) }, rules, llmPatterns: [] };
+  return { schemaVersion: 1, repository: { root, sampledPaths: sources.map(s => s.path).sort(), createdAt: new Date().toISOString(), fingerprint: fingerprint(root, sources) }, rules, llmPatterns };
 }
