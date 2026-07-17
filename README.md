@@ -107,6 +107,8 @@ The Code Snippet editor keeps Tab inside the editor and inserts two spaces (`TAB
 
 History entries include review duration, files analyzed, and the active provider (`deterministic`, `groq`, or `openai`) when available. The dashboard presents these as operational telemetry rather than performance claims.
 
+The GitHub publication and telemetry paths have mocked coverage in the convention test suite. Live webhook, Redis, Check Run, and fix-PR verification still requires a configured GitHub App installation and runtime Redis service.
+
 Repository profiles can also be managed through the profile registry APIs. Profiles are validated against the versioned schema and stored atomically under `.codex-reviewer/profiles/<owner>__<repo>.json`; corrupt or unsupported profiles are rejected instead of being used for review.
 
 Webhook deliveries now carry the PR head/base SHAs and use a deterministic BullMQ job ID, preventing duplicate processing when GitHub retries the same delivery. Set `CONVENTION_REVIEW_ENABLED=true` to fetch base/head source trees, materialize isolated repositories, and run the convention evaluator in the worker. Set `CONVENTION_PROFILE_PATH` to reuse a persisted profile; otherwise a profile is learned from the base tree.

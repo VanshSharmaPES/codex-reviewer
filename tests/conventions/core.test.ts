@@ -11,6 +11,8 @@ import { generateFixes } from '../../src/conventions/fixGenerator';
 import { validateFix } from '../../src/conventions/fixValidator';
 import { deleteRepositoryProfile, listRepositoryProfiles, loadRepositoryProfile, saveRepositoryProfile } from '../../src/conventions/profileRegistry';
 import { createValidatedFixPullRequest } from '../../src/github/fixPullRequest';
+import { publishConventionReview } from '../../src/github/conventionPublisher';
+import { listReviews, recordReview } from '../../src/reviews/reviewStore';
 
 test('classifies supported identifier styles', () => {
   assert.equal(classifyIdentifier('formatValue'), 'camelCase');
@@ -110,4 +112,22 @@ test('creates an idempotent validated-fix pull request', async () => {
   const url = await createValidatedFixPullRequest(octokit, 'acme', 'app', 1, 'abcdef123456', [fix], new Map([['src/helpers.ts', fix.fixedSource]]));
   assert.equal(url, 'https://github.com/acme/app/pull/2');
   assert.deepEqual(calls, ['ref', 'file', 'pr']);
+});
+
+test('publishes a convention check and changed-line comments', async () => {
+  const calls: string[] = [];
+  const octokit = { rest: { checks: { create: async (input: any) => { calls.push(`check:${input.conclusion}:${input.output.annotations.length}`); } }, pulls: { createReview: async (input: any) => { calls.push(`review:${input.comments.length}`); } } } } as any;
+  await publishConventionReview(octokit, 'acme', 'app', 4, 'head-sha', { violations: [{ ruleId: 'function-name-style', path: 'src/file.ts', line: 8, message: 'Use camelCase.', confidence: .9, examples: [{ path: 'src/example.ts', line: 2 }] }], skips: [], diagnostics: [], partial: false, fixes: [] });
+  assert.deepEqual(calls, ['check:failure:1', 'review:1']);
+});
+
+test('records review telemetry newest-first', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'review-history-'));
+  const previous = process.env.REVIEW_HISTORY_PATH;
+  process.env.REVIEW_HISTORY_PATH = path.join(directory, 'reviews.json');
+  recordReview({ id: 'one', owner: 'acme', repo: 'app', prNumber: 1, status: 'passed', violations: 0, durationMs: 100, filesAnalyzed: 2, provider: 'deterministic', createdAt: '2026-01-01T00:00:00.000Z' });
+  recordReview({ id: 'two', owner: 'acme', repo: 'app', prNumber: 2, status: 'failed', violations: 1, durationMs: 200, filesAnalyzed: 3, provider: 'groq', createdAt: '2026-01-02T00:00:00.000Z' });
+  assert.deepEqual(listReviews().map(review => review.id), ['two', 'one']);
+  if (previous === undefined) delete process.env.REVIEW_HISTORY_PATH; else process.env.REVIEW_HISTORY_PATH = previous;
+  fs.rmSync(directory, { recursive: true, force: true });
 });
