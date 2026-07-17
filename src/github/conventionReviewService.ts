@@ -10,6 +10,8 @@ import { resolvePatch } from '../conventions/patchResolver';
 import { evaluateProfile } from '../conventions/evaluator';
 import { safeJoin } from '../conventions/paths';
 import { ReviewResult } from '../conventions/types';
+import { generateFixes } from '../conventions/fixGenerator';
+import { validateFixes } from '../conventions/fixValidator';
 
 async function materializeTree(octokit: Octokit, owner: string, repo: string, sha: string, root: string): Promise<void> {
   const tree = await octokit.rest.git.getTree({ owner, repo, tree_sha: sha, recursive: '1' });
@@ -41,9 +43,11 @@ export async function runConventionReview(octokit: Octokit, owner: string, repo:
     const patchPath = path.join(temporary, 'change.patch'); fs.writeFileSync(patchPath, patchFromFiles(files));
     const resolution = resolvePatch(baseRoot, headRoot, patchPath);
     const touched = [...new Set(resolution.ranges.map(range => range.path))];
-    const changed = touched.map(file => extractFileFeatures(file, fs.readFileSync(safeJoin(headRoot, file), 'utf8')));
+    const sourceByPath = new Map(touched.map(file => [file, fs.readFileSync(safeJoin(headRoot, file), 'utf8')]));
+    const changed = touched.map(file => extractFileFeatures(file, sourceByPath.get(file)!));
     const result = evaluateProfile(profile, changed, resolution.ranges);
     result.skips.push(...resolution.skips); result.diagnostics.push(...resolution.diagnostics); result.partial = result.skips.length > 0;
+    if (process.env.CONVENTION_FIXES === 'auto') result.fixes = validateFixes(await generateFixes(result.violations, sourceByPath), headRoot, profile);
     return result;
   } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
 }

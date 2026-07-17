@@ -43,7 +43,7 @@ export function validateFix(fix: FixResult, repoRoot: string, profile: Conventio
     const remaining = evaluateProfile(profile, [features], ranges).violations;
     if (remaining.some(violation => violation.ruleId === fix.violation.ruleId && violation.path === fix.violation.path)) throw new Error('Generated diff did not remove the original violation.');
     if (remaining.length) throw new Error('Generated diff introduces another convention violation.');
-    return { ...fix, status: 'validated' };
+    return { ...fix, status: 'validated', fixedSource: source };
   } catch (error) { return { ...fix, status: 'rejected', reason: error instanceof Error ? error.message : 'Generated diff failed validation.' }; }
   finally { fs.rmSync(temp, { recursive: true, force: true }); }
 }

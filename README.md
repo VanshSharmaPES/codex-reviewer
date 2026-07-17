@@ -101,11 +101,15 @@ The fixture workflow is deterministic and does not require Redis, GitHub credent
 
 The demo command profiles the included fixture repository, reviews the fixture patch, and validates a mocked fix end-to-end. It is the quickest way to rehearse the convention workflow after a clean checkout.
 
+Open `/dashboard` to view persisted convention review history, pass/fail status, and violation totals. The dashboard is intentionally read-only; review actions and fix PR creation remain explicit workflow steps.
+
 Repository profiles can also be managed through the profile registry APIs. Profiles are validated against the versioned schema and stored atomically under `.codex-reviewer/profiles/<owner>__<repo>.json`; corrupt or unsupported profiles are rejected instead of being used for review.
 
 Webhook deliveries now carry the PR head/base SHAs and use a deterministic BullMQ job ID, preventing duplicate processing when GitHub retries the same delivery. Set `CONVENTION_REVIEW_ENABLED=true` to fetch base/head source trees, materialize isolated repositories, and run the convention evaluator in the worker. Set `CONVENTION_PROFILE_PATH` to reuse a persisted profile; otherwise a profile is learned from the base tree.
 
 Set `CONVENTION_PUBLISH=true` to publish convention results as a GitHub Check Run with changed-line annotations and inline review comments. Review history is retained locally through `GET /api/reviews` in `.codex-reviewer/reviews.json`. Validated fix PR creation is available through the guarded `createValidatedFixPullRequest` service and must be explicitly wired to an approved fix workflow.
+
+For automatic fixes, set both `CONVENTION_FIXES=auto` and `CONVENTION_CREATE_FIX_PR=true`. Only fixes that pass isolated patch application, parsing, rule re-evaluation, and regression checks are committed to a dedicated `codex-reviewer/fixes-*` branch and opened as a separate pull request.
 
 ## How Codex and GPT-5.6 were used
 

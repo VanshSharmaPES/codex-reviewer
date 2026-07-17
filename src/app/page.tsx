@@ -196,7 +196,7 @@ export default function Home() {
               ⚡
             </div>
             <div>
-              <span className="font-display font-bold tracking-tight text-slate-100">AI BUG DETECTOR</span>
+              <span className="font-display font-bold tracking-tight text-slate-100">CODEX REVIEWER</span>
               <span className="ml-2.5 text-[9px] tracking-wider uppercase font-bold px-1.5 py-0.5 rounded bg-volt-300/10 text-volt-300 border border-volt-400/10">
                 Playground
               </span>
@@ -230,10 +230,10 @@ export default function Home() {
         <section className="text-center md:text-left md:flex items-center justify-between gap-12 py-4">
           <div className="max-w-2xl">
             <h1 className="text-4xl md:text-5xl font-display font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
-              Deep Logical Bug Detection
+              Review code with evidence
             </h1>
             <p className="mt-3 text-sm md:text-base text-slate-400 leading-relaxed font-sans">
-              An advanced code review assistant using Abstract Syntax Tree (AST) scanning combined with low-latency LLMs. Paste raw code blocks or connect public GitHub Pull Requests to run automatic reviews.
+              Inspect code structure, surface real risks, and understand why a finding matters. Start with a snippet or connect a public GitHub pull request.
             </p>
           </div>
         </section>

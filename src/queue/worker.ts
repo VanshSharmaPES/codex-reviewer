@@ -14,6 +14,7 @@ import { postReviewComments } from '../github/commenter';
 import { runConventionReview } from '../github/conventionReviewService';
 import { publishConventionReview } from '../github/conventionPublisher';
 import { recordReview } from '../reviews/reviewStore';
+import { createValidatedFixPullRequest } from '../github/fixPullRequest';
 
 dotenv.config();
 
@@ -80,6 +81,11 @@ export const prWorker = new Worker<PRReviewJob>('pr-analysis', async (job: Job<P
         logger.info({ owner, repo, prNumber, violations: conventionResult.violations.length, partial: conventionResult.partial }, 'Convention review completed');
         recordReview({ id: `${owner}/${repo}#${prNumber}:${pullRequest.data.head.sha}`, owner, repo, prNumber, status: conventionResult.partial ? 'partial' : conventionResult.violations.length ? 'failed' : 'passed', violations: conventionResult.violations.length, createdAt: new Date().toISOString() });
         if (process.env.CONVENTION_PUBLISH === 'true') await publishConventionReview(octokit, owner, repo, prNumber, pullRequest.data.head.sha, conventionResult);
+        if (process.env.CONVENTION_CREATE_FIX_PR === 'true') {
+            const files = new Map(conventionResult.fixes.filter(fix => fix.status === 'validated' && fix.fixedSource).map(fix => [fix.violation.path, fix.fixedSource!]));
+            const url = await createValidatedFixPullRequest(octokit, owner, repo, prNumber, pullRequest.data.head.sha, conventionResult.fixes, files);
+            if (url) logger.info({ url, owner, repo, prNumber }, 'Created validated convention-fix pull request');
+        }
     }
 
     logger.info(`Successfully processed PR ${owner}/${repo}#${prNumber}`);
