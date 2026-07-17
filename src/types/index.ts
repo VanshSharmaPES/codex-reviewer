@@ -183,6 +183,10 @@ export interface PRReviewJob {
     repo: string;
     prNumber: number;
     installationId: number;
+    deliveryId?: string;
+    headSha?: string;
+    baseSha?: string;
+    runConventions?: boolean;
 }
 
 export interface DiffFile {

@@ -7,25 +7,29 @@ import { PRReviewJob } from '../types';
 dotenv.config();
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+let redisConnection: Redis | undefined;
+let prQueue: Queue<PRReviewJob> | undefined;
 
-const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-export const redisConnection = new Redis(redisUrl, {
-    maxRetriesPerRequest: null,
-}) as any;
+export function getRedisConnection(): Redis {
+    if (!redisConnection) {
+        const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+        redisConnection = new Redis(redisUrl, { maxRetriesPerRequest: null });
+        redisConnection.on('error', (err: any) => logger.error({ err }, 'Redis connection error'));
+    }
+    return redisConnection;
+}
 
-redisConnection.on('error', (err: any) => {
-    logger.error({ err }, 'Redis connection error');
-});
-
-export const prQueue = new Queue<PRReviewJob>('pr-analysis', {
-    connection: redisConnection,
-    defaultJobOptions: {
-        attempts: 3,
-        backoff: {
-            type: 'exponential',
-            delay: 5000,
-        },
-        removeOnComplete: true,
-        removeOnFail: false,
-    },
-});
+export function getPRQueue(): Queue<PRReviewJob> {
+    if (!prQueue) {
+        prQueue = new Queue('pr-analysis', {
+            connection: getRedisConnection() as any,
+            defaultJobOptions: {
+                attempts: 3,
+                backoff: { type: 'exponential', delay: 5000 },
+                removeOnComplete: true,
+                removeOnFail: false,
+            },
+        }) as Queue<PRReviewJob>;
+    }
+    return prQueue;
+}

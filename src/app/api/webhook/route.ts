@@ -1,7 +1,7 @@
 import { Webhooks } from '@octokit/webhooks';
 import { NextRequest, NextResponse } from 'next/server';
 import pino from 'pino';
-import { prQueue } from '@/queue/prQueue';
+import { getPRQueue } from '@/queue/prQueue';
 import { runPRReview } from '@/github/reviewService';
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
@@ -48,12 +48,16 @@ async function handlePRWebhook(event: any) {
         }
     } else {
         try {
-            await prQueue.add('review-pr', {
+            await getPRQueue().add('review-pr', {
                 owner: repository.owner.login,
                 repo: repository.name,
                 prNumber: pull_request.number,
                 installationId: installation.id,
-            });
+                deliveryId: event.id,
+                headSha: pull_request.head?.sha,
+                baseSha: pull_request.base?.sha,
+                runConventions: process.env.CONVENTION_REVIEW_ENABLED === 'true',
+            }, { jobId: `pr-${repository.full_name}-${pull_request.number}-${pull_request.head?.sha || event.id}` });
 
             logger.info(`Queued PR review job for ${repository.full_name}#${pull_request.number}`);
         } catch (error) {

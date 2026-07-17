@@ -101,6 +101,10 @@ The fixture workflow is deterministic and does not require Redis, GitHub credent
 
 The demo command profiles the included fixture repository, reviews the fixture patch, and validates a mocked fix end-to-end. It is the quickest way to rehearse the convention workflow after a clean checkout.
 
+Repository profiles can also be managed through the profile registry APIs. Profiles are validated against the versioned schema and stored atomically under `.codex-reviewer/profiles/<owner>__<repo>.json`; corrupt or unsupported profiles are rejected instead of being used for review.
+
+Webhook deliveries now carry the PR head/base SHAs and use a deterministic BullMQ job ID, preventing duplicate processing when GitHub retries the same delivery. Set `CONVENTION_REVIEW_ENABLED=true` to fetch base/head source trees, materialize isolated repositories, and run the convention evaluator in the worker. Set `CONVENTION_PROFILE_PATH` to reuse a persisted profile; otherwise a profile is learned from the base tree.
+
 ## How Codex and GPT-5.6 were used
 
 Codex, using GPT-5.6, was used as a development collaborator for architecture review, implementation planning, code generation, test creation, and local verification of the repository-convention CLI. It helped structure the code into typed, independently testable modules and validate the profile-and-review flow against fixtures.
@@ -127,6 +131,8 @@ or run components separately: `redis-server`, `npm run dev`, `npm run worker`.
 ### Vercel deployment checks
 
 Before deploying, run `npm run build` locally. The production build requires the direct `tree-sitter` dependency declared in `package.json`; Vercel will also fail the build when JSX text contains unescaped apostrophes or quotes. Redis is required by the webhook/worker path, but the convention-review CLI and the static frontend build do not require a local Redis server.
+
+Queue and Redis clients are initialized lazily when the webhook route or worker actually needs them. This keeps `npm run build` and Vercel prerendering independent of a running Redis instance; configure `REDIS_URL` in the deployed runtime for queued webhook processing.
 
 ## Roadmap
 

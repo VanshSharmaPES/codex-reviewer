@@ -9,6 +9,7 @@ import { evaluateProfile } from '../../src/conventions/evaluator';
 import { extractLlmPatterns } from '../../src/conventions/llmPatterns';
 import { generateFixes } from '../../src/conventions/fixGenerator';
 import { validateFix } from '../../src/conventions/fixValidator';
+import { deleteRepositoryProfile, listRepositoryProfiles, loadRepositoryProfile, saveRepositoryProfile } from '../../src/conventions/profileRegistry';
 
 test('classifies supported identifier styles', () => {
   assert.equal(classifyIdentifier('formatValue'), 'camelCase');
@@ -83,4 +84,15 @@ test('rejects a fix that targets a different file', () => {
   const violation = { ruleId: 'function-name-style' as const, path: 'src/helpers.ts', line: 1, message: 'Use camelCase.', confidence: 1, examples: [] };
   const result = validateFix({ violation, status: 'generated', unifiedDiff: '--- a/src/other.ts\n+++ b/src/other.ts\n@@ -1,1 +1,1 @@\n-old\n+new' }, process.cwd(), { schemaVersion: 1, repository: { root: process.cwd(), sampledPaths: [], createdAt: new Date().toISOString(), fingerprint: '0'.repeat(64) }, rules: [], llmPatterns: [] });
   assert.equal(result.status, 'rejected');
+});
+
+test('persists and reloads a repository profile atomically', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'convention-registry-'));
+  const profile = buildProfile(directory, [{ path: 'src/helpers.ts', source: 'export function formatValue(value: string) { return value; }', features: extractFileFeatures('src/helpers.ts', 'export function formatValue(value: string) { return value; }') }]);
+  saveRepositoryProfile(directory, 'Acme', 'Payments', profile);
+  assert.equal(loadRepositoryProfile(directory, 'acme', 'payments')?.profile.schemaVersion, 1);
+  assert.equal(listRepositoryProfiles(directory).length, 1);
+  assert.equal(deleteRepositoryProfile(directory, 'acme', 'payments'), true);
+  assert.equal(loadRepositoryProfile(directory, 'acme', 'payments'), null);
+  fs.rmSync(directory, { recursive: true, force: true });
 });

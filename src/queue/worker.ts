@@ -3,7 +3,7 @@ import pRetry from 'p-retry';
 import pino from 'pino';
 import dotenv from 'dotenv';
 import { PRReviewJob } from '../types';
-import { redisConnection } from './prQueue';
+import { getRedisConnection } from './prQueue';
 import { getOctokitClient } from '../github/client';
 import { fetchPRDiff } from '../github/diffFetcher';
 import { parseCode } from '../parser/astParser';
@@ -11,13 +11,14 @@ import { getTriggeredRules } from '../rules/ruleEngine';
 import { buildSystemPrompt, buildUserPrompt } from '../prompt/contextBuilder';
 import { analyzeCode } from '../ai/analyzer';
 import { postReviewComments } from '../github/commenter';
+import { runConventionReview } from '../github/conventionReviewService';
 
 dotenv.config();
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
 export const prWorker = new Worker<PRReviewJob>('pr-analysis', async (job: Job<PRReviewJob>) => {
-    const { owner, repo, prNumber, installationId } = job.data;
+    const { owner, repo, prNumber, installationId, runConventions } = job.data;
     logger.info(`Processing PR analysis for ${owner}/${repo}#${prNumber}`);
 
     let octokit;
@@ -71,10 +72,16 @@ export const prWorker = new Worker<PRReviewJob>('pr-analysis', async (job: Job<P
         }
     });
 
+    if (runConventions) {
+        const pullRequest = await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber });
+        const conventionResult = await runConventionReview(octokit, owner, repo, pullRequest.data.base.sha, pullRequest.data.head.sha, diffFiles, process.env.CONVENTION_PROFILE_PATH);
+        logger.info({ owner, repo, prNumber, violations: conventionResult.violations.length, partial: conventionResult.partial }, 'Convention review completed');
+    }
+
     logger.info(`Successfully processed PR ${owner}/${repo}#${prNumber}`);
 
 }, {
-    connection: redisConnection,
+    connection: getRedisConnection() as any,
     concurrency: 5,
     autorun: false
 });
