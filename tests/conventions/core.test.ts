@@ -50,6 +50,13 @@ test('accepts only model patterns grounded in supplied examples', async () => {
   assert.equal(result.patterns[0].kind, 'llm-advisory');
 });
 
+test('reports invalid model evidence without creating an advisory rule', async () => {
+  const features = extractFileFeatures('src/task.ts', 'export function runTask() { return true; }');
+  const result = await extractLlmPatterns([{ path: 'src/task.ts', source: 'export function runTask() { return true; }', features }], { complete: async () => JSON.stringify({ id: 'function-structure-shape', rule: 'Unsupported evidence.', confidence: 0.9, examples: [{ path: 'src/missing.ts', line: 1 }] }) });
+  assert.equal(result.patterns.length, 0);
+  assert.equal(result.diagnostics[0].code, 'LLM_PATTERN_FAILED');
+});
+
 test('generates a structured diff only for the reported file', async () => {
   const violation = { ruleId: 'function-name-style' as const, path: 'src/helpers.ts', line: 1, message: 'Use camelCase.', confidence: 1, examples: [] };
   const client = { complete: async () => JSON.stringify({ path: 'src/helpers.ts', explanation: 'Rename the function.', unifiedDiff: '--- a/src/helpers.ts\n+++ b/src/helpers.ts\n@@ -1 +1 @@\n-export function bad_name() {}\n+export function badName() {}' }) };
@@ -70,4 +77,10 @@ test('validates a generated fix in an isolated copy', () => {
   const result = validateFix(fix, directory, profile);
   assert.equal(result.status, 'validated', result.reason);
   fs.rmSync(directory, { recursive: true, force: true });
+});
+
+test('rejects a fix that targets a different file', () => {
+  const violation = { ruleId: 'function-name-style' as const, path: 'src/helpers.ts', line: 1, message: 'Use camelCase.', confidence: 1, examples: [] };
+  const result = validateFix({ violation, status: 'generated', unifiedDiff: '--- a/src/other.ts\n+++ b/src/other.ts\n@@ -1,1 +1,1 @@\n-old\n+new' }, process.cwd(), { schemaVersion: 1, repository: { root: process.cwd(), sampledPaths: [], createdAt: new Date().toISOString(), fingerprint: '0'.repeat(64) }, rules: [], llmPatterns: [] });
+  assert.equal(result.status, 'rejected');
 });

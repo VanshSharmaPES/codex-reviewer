@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "node scripts/lint.js",
     "worker": "tsx src/queue/worker.ts",
     "conventions:profile": "tsx scripts/conventions.ts profile",
     "conventions:review": "tsx scripts/conventions.ts review",

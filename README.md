@@ -78,6 +78,26 @@ npm run conventions:review -- --base fixtures/convention-base --repo fixtures/co
 
 Pass `--fixes auto` to request up to three structured AI-generated unified diffs for the detected convention violations. Each generated diff is applied in an isolated temporary copy, reparsed, checked against the original rule, and rejected if it introduces another convention violation or touches an unrelated location.
 
+The review command compares three inputs: `--base` is the repository used to learn conventions, `--repo` is the post-change repository, and `--patch` identifies the changed lines. This prevents pre-existing violations outside the patch from being reported as new findings. Use `--llm-patterns` when profiling to add optional, evidence-grounded advisory patterns; deterministic findings do not require an AI key.
+
+### CLI exit codes
+
+- `0`: profile/review completed with no enforceable violations.
+- `1`: review completed and found one or more violations.
+- `2`: invalid arguments, profile, patch, or output path.
+- `3`: no eligible source file could be analyzed.
+
+### Development checks
+
+```bash
+npm run lint
+npm run test:conventions
+npx tsc --noEmit
+npm run build
+```
+
+The fixture workflow is deterministic and does not require Redis, GitHub credentials, or an AI provider. AI-generated fixes are never applied to the user’s working tree automatically; they are validated in an isolated temporary copy first.
+
 ## How Codex and GPT-5.6 were used
 
 Codex, using GPT-5.6, was used as a development collaborator for architecture review, implementation planning, code generation, test creation, and local verification of the repository-convention CLI. It helped structure the code into typed, independently testable modules and validate the profile-and-review flow against fixtures.
