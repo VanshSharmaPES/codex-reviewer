@@ -107,6 +107,8 @@ The Code Snippet editor keeps Tab inside the editor and inserts two spaces (`TAB
 
 History entries include review duration, files analyzed, and the active provider (`deterministic`, `groq`, or `openai`) when available. The dashboard presents these as operational telemetry rather than performance claims.
 
+`GET /api/health` now reports `queue.redisConfigured` and `queue.redisReachable`, making Redis readiness visible before enabling queued webhook processing.
+
 The GitHub publication and telemetry paths have mocked coverage in the convention test suite. Live webhook, Redis, Check Run, and fix-PR verification still requires a configured GitHub App installation and runtime Redis service.
 
 Repository profiles can also be managed through the profile registry APIs. Profiles are validated against the versioned schema and stored atomically under `.codex-reviewer/profiles/<owner>__<repo>.json`; corrupt or unsupported profiles are rejected instead of being used for review.

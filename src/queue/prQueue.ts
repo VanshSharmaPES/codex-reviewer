@@ -13,7 +13,7 @@ let prQueue: Queue<PRReviewJob> | undefined;
 export function getRedisConnection(): Redis {
     if (!redisConnection) {
         const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-        redisConnection = new Redis(redisUrl, { maxRetriesPerRequest: null });
+        redisConnection = new Redis(redisUrl, { maxRetriesPerRequest: null, lazyConnect: true });
         redisConnection.on('error', (err: any) => logger.error({ err }, 'Redis connection error'));
     }
     return redisConnection;
