@@ -4,27 +4,35 @@ Codex Reviewer is a repository-aware TypeScript/JavaScript convention reviewer. 
 
 **Primary focus:** deterministic, explainable repository convention review for the Developer Tools category.
 
-## Repository Convention Reviewer CLI
-
-The CLI profiles a base repository, compares a post-change repository against a patch, and reports only newly introduced convention deviations. It supports deterministic naming style, import order, function length, and exported-code documentation rules. Optional LLM patterns are advisory evidence and never create ungrounded violations.
+## Getting Started
 
 ```bash
+git clone https://github.com/VanshSharmaPES/codex-reviewer.git
+cd codex-reviewer
 npm install
+```
+
+**To see it work, using the bundled fixtures:**
+
+```bash
 npm run demo:conventions
 ```
 
-The demo profiles the included fixtures, reviews a deliberately problematic patch, and validates a mocked model-generated fix end-to-end. The model response is mocked for determinism, but the real fix validator applies the diff in isolation, reparses the changed file, and re-evaluates the original convention. It requires no Redis, GitHub credentials, or AI provider.
+This runs a fixed, self-contained walkthrough: it profiles a small sample repo checked into this project (`fixtures/convention-base`), reviews a bundled patch that deliberately breaks a naming convention, and validates a fix for it. The model's fix suggestion is mocked in this demo for deterministic output, but the fix validator itself is real: it applies the diff in an isolated copy, reparses the changed file, and re-checks it against the original rule. No Redis, GitHub credentials, or AI provider key are needed for this command.
 
-For the individual commands:
+**To run it on your own repository or patch:**
+
+The demo above always uses the same bundled fixtures. To review real code, use the underlying commands directly:
 
 ```bash
-npm run conventions:profile -- --repo fixtures/convention-base --out fixtures/profile.json
-npm run conventions:review -- --base fixtures/convention-base --repo fixtures/convention-change --profile fixtures/profile.json --patch fixtures/convention-change.patch
+npm run conventions:profile -- --repo /path/to/your/repo --out profile.json
+npm run conventions:review -- --base /path/to/your/repo --repo /path/to/your/changed/repo --profile profile.json --patch your-changes.patch
 ```
 
-Use `--fixes auto` to request up to three structured AI-generated diffs. Every diff is applied in an isolated temporary copy, reparsed, checked against the original rule, and rejected if it touches unrelated code or introduces another convention violation.
-
-The review command compares `--base`, `--repo`, and `--patch` so pre-existing violations outside the changed ranges are not reported as new findings. Use `--llm-patterns` during profiling to add optional evidence-grounded advisory patterns.
+- `profile` learns conventions from `--repo` and writes them to `--out`.
+- `review` compares `--base` (before), `--repo` (after), and `--patch` (the diff), and reports only violations introduced by the patch, not pre-existing issues elsewhere in the repo.
+- Add `--fixes auto` to request up to three AI-generated diffs (this calls a real AI provider, unlike the demo above). Every diff is applied in an isolated temporary copy, reparsed, checked against the original rule, and rejected if it touches unrelated code or introduces another convention violation.
+- Add `--llm-patterns` during profiling to include optional, evidence-grounded advisory patterns (see "How Codex and GPT-5.6 were used" below). These are advisory only and never create a violation on their own.
 
 ### CLI exit codes
 
@@ -56,13 +64,7 @@ The dashboard is available at `/dashboard`; it shows persisted review status, vi
 
 Codex, using GPT-5.6, was used as a development collaborator specifically for the repository-convention CLI: architecture review, implementation planning, typed module design, fixture creation, test generation, demo validation, and documentation. It was not used to expand the earlier bug-detection experiment described above.
 
-## Running locally
-
-```bash
-git clone https://github.com/VanshSharmaPES/codex-reviewer.git
-cd codex-reviewer
-npm install
-```
+## Optional: environment variables
 
 The convention CLI and demo need no environment variables. The optional GitHub worker requires the values in `.env.example`, a registered GitHub App, and Redis available at `REDIS_URL`.
 
